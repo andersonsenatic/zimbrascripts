@@ -1,0 +1,49 @@
+---
+- name: Desinstalar agente, configurar ambiente e verificar status do agente
+  hosts: all
+  become: yes
+  environment:
+    PATH: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    UI_UM_PASSWORD: 'pfbCwT1x'
+    GC_PROFILE: 'default-no-enforcement'
+    GC_PROXY_HTTPS: "proxy-az.tpn.terra.com:8080"
+    SSL_ADDRESSES: "10.128.1.3:443"
+    http_proxy: "http://proxy-az.tpn.terra.com:8080/"
+    https_proxy: "http://proxy-az.tpn.terra.com:8080/"
+    no_proxy: "10.128.1.3,10.0.0.0/8"
+
+  tasks:
+    - name: Desinstalar o agente
+      command: gc-agent uninstall --purge
+      ignore_errors: yes
+      tags:
+        - uninstall_agent
+
+    - name: Baixar certificado PEM do Guardicore com curl
+      command: curl -k https://aggr-cus-2780.cloud.guardicore.com/guardicore-cas-chain-file.pem --output /tmp/guardicore_cas_chain_file.pem
+      environment:
+        http_proxy: "http://proxy-az.tpn.terra.com:8080/"
+        https_proxy: "http://proxy-az.tpn.terra.com:8080/"
+      tags:
+        - download_certificate
+
+    - name: Executar script do Guardicore com curl
+      shell: curl -k --cacert /tmp/guardicore_cas_chain_file.pem https://aggr-cus-2780.cloud.guardicore.com/ | sudo -E bash
+      environment:
+        UI_UM_PASSWORD: 'pfbCwT1x'
+        GC_PROFILE: 'default-no-enforcement'
+        GC_PROXY_HTTPS: "proxy-az.tpn.terra.com:8080"
+        SSL_ADDRESSES: "10.128.1.3:443,10.128.1.1:443,10.128.1.2:443"
+        http_proxy: "http://proxy-az.tpn.terra.com:8080/"
+        https_proxy: "http://proxy-az.tpn.terra.com:8080/"
+      become: true
+      tags:
+        - execute_script
+
+    - name: Verificar status do agente Guardicore
+      command: gc-agent status
+      register: gc_agent_status
+      ignore_errors: yes
+      tags:
+        - check_status
+
